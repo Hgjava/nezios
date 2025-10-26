@@ -2308,7 +2308,6 @@
 			);
 			mainGroup = B9AA45922C14546B005EA061;
 			packageReferences = (
-				999129542EAE33AB0085C367 /* XCRemoteSwiftPackageReference "ZFPlayer" */,
 			);
 			productRefGroup = B9AA459C2C14546B005EA061 /* Products */;
 			projectDirPath = "";
@@ -3699,14 +3698,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		999129542EAE33AB0085C367 /* XCRemoteSwiftPackageReference "ZFPlayer" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/renzifeng/ZFPlayer";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 4.1.4;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCVersionGroup section */

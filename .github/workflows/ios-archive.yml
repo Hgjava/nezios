@@ -1,0 +1,85 @@
+name: iOS Archive
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers on version tags
+
+jobs:
+  archive:
+    name: Create iOS Archive
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.0'
+          bundler-cache: true
+
+      - name: Install CocoaPods
+        run: |
+          gem install cocoapods
+          pod install
+
+      - name: Install Apple Certificate
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # Create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -l ~/Library/Keychains/build.keychain
+
+          # Import certificate to keychain
+          echo $BUILD_CERTIFICATE_BASE64 | base64 --decode > certificate.p12
+          security import certificate.p12 -k build.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+          # Import provisioning profile
+          echo $BUILD_PROVISION_PROFILE_BASE64 | base64 --decode > provisioning.mobileprovision
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp provisioning.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Archive iOS app
+        run: |
+          xcodebuild -workspace VideoSmash.xcworkspace \
+            -scheme VideoSmash \
+            -configuration Release \
+            -archivePath $RUNNER_TEMP/VideoSmash.xcarchive \
+            clean archive
+
+      - name: Export IPA
+        env:
+          EXPORT_OPTIONS_PLIST: ${{ secrets.EXPORT_OPTIONS_PLIST }}
+        run: |
+          echo $EXPORT_OPTIONS_PLIST | base64 --decode > ExportOptions.plist
+          xcodebuild -exportArchive \
+            -archivePath $RUNNER_TEMP/VideoSmash.xcarchive \
+            -exportPath $RUNNER_TEMP/build \
+            -exportOptionsPlist ExportOptions.plist
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v3
+        with:
+          name: VideoSmash-IPA
+          path: ${{ runner.temp }}/build/*.ipa
+          retention-days: 30
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ runner.temp }}/build/*.ipa
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
